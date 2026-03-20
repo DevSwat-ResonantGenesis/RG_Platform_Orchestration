@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CASCADE Control Plane - 3D Dependency Visualizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%); 
+            color: #fff; 
+            overflow: hidden; 
+        }
+        #container { width: 100vw; height: 100vh; position: relative; }
+        #canvas { width: 100%; height: 100%; }
+        
+        .panel { 
+            position: absolute; 
+            background: rgba(17, 17, 24, 0.95); 
+            border: 1px solid #2a2a3a; 
+            border-radius: 12px; 
+            padding: 15px; 
+            backdrop-filter: blur(10px); 
+            font-size: 0.8em; 
+            z-index: 10;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        #controls { top: 15px; left: 15px; width: 280px; }
+        #impact-panel { top: 15px; right: 15px; width: 320px; display: none; }
+        #alerts-panel { bottom: 15px; right: 15px; width: 320px; max-height: 300px; }
+        #isolation-panel { bottom: 15px; left: 15px; width: 280px; }
+        
+        h2 { 
+            color: #64c8ff; 
+            margin-bottom: 12px; 
+            font-size: 1.1em; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+        }
+        h3 { color: #888; margin: 10px 0 6px; font-size: 0.9em; }
+        
+        .control-group { margin-bottom: 12px; }
+        .control-group label { 
+            display: block; 
+            margin-bottom: 4px; 
+            color: #a0a0a0; 
+            font-size: 0.85em; 
+        }
+        
+        input, select, button { 
+            width: 100%; 
+            padding: 8px 12px; 
+            background: #1a1a2e; 
+            border: 1px solid #2a2a3a; 
+            border-radius: 6px; 
+            color: #fff; 
+            font-size: 0.9em; 
+            margin-bottom: 6px; 
+        }
+        input:focus, select:focus { border-color: #64c8ff; outline: none; }
+        
+        button { 
+            cursor: pointer; 
+            background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%); 
+            border: none; 
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        
+        .btn-danger { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        .btn-success { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+        .btn-warning { background: linear-gradient(135deg, #f39c12, #e67e22); }
+        .btn-secondary { background: #2a2a3a; border: 1px solid #3a3a4a; }
+        
+        .stat { 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 6px 0; 
+            border-bottom: 1px solid #2a2a3a; 
+        }
+        .stat-value { font-weight: 600; }
+        .stat-value.danger { color: #e74c3c; }
+        .stat-value.success { color: #2ecc71; }
+        .stat-value.warning { color: #f39c12; }
+        .stat-value.info { color: #64c8ff; }
+        
+        .zone-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin: 2px;
+        }
+        .zone-critical { background: #e74c3c; }
+        .zone-high { background: #f39c12; }
+        .zone-medium { background: #3498db; }
+        .zone-low { background: #2ecc71; }
+        
+        .alert-item {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .alert-item.warning { 
+            background: rgba(243, 156, 18, 0.2); 
+            border-color: #f39c12; 
+        }
+        .alert-item.info { 
+            background: rgba(52, 152, 219, 0.2); 
+            border-color: #3498db; 
+        }
+        .alert-title { font-weight: 600; margin-bottom: 4px; }
+        .alert-message { font-size: 0.85em; color: #ccc; }
+        
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            background: #1a1a2e;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .layer-level {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #64c8ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8em;
+            margin-right: 10px;
+        }
+        .layer-name { font-weight: 600; }
+        .layer-services { font-size: 0.75em; color: #888; }
+        
+        .legend { margin-top: 15px; }
+        .legend-item { 
+            display: flex; 
+            align-items: center; 
+            margin: 4px 0; 
+            font-size: 0.85em; 
+        }
+        .legend-color { 
+            width: 14px; 
+            height: 14px; 
+            border-radius: 50%; 
+            margin-right: 8px; 
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #2a2a3a;
+            border-top-color: #64c8ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(17, 17, 24, 0.98);
+            border: 1px solid #64c8ff;
+            border-radius: 8px;
+            padding: 12px;
+            max-width: 300px;
+            z-index: 100;
+            display: none;
+        }
+        .tooltip.visible { display: block; }
+        .tooltip-title { font-weight: 600; color: #64c8ff; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+        
+        <div class="panel" id="controls">
+            <h2>🎛️ CASCADE Control Plane</h2>
+            
+            <div class="control-group">
+                <label>Codebase Path</label>
+                <input type="text" id="codebasePath" value="/app" placeholder="/path/to/codebase">
+                <button id="analyzeBtn">🔍 Analyze Codebase</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Filter by Service</label>
+                <select id="serviceFilter">
+                    <option value="">All Services</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Filter by Zone</label>
+                <select id="zoneFilter">
+                    <option value="">All Zones</option>
+                    <option value="authentication">🔐 Authentication</option>
+                    <option value="payment">💳 Payment</option>
+                    <option value="gateway">🌐 Gateway</option>
+                    <option value="memory">🧠 Memory</option>
+                    <option value="agents">🤖 Agents</option>
+                    <option value="database">🗄️ Database</option>
+                </select>
+            </div>
+            
+            <button id="showImpactBtn" class="btn-warning">📊 Analyze Change Impact</button>
+            <button id="showAlertsBtn" class="btn-danger">🚨 View Alerts</button>
+            
+            <h3>📈 Statistics</h3>
+            <div class="stat">
+                <span>Services</span>
+                <span class="stat-value info" id="statServices">0</span>
+            </div>
+            <div class="stat">
+                <span>Nodes</span>
+                <span class="stat-value" id="statNodes">0</span>
+            </div>
+            <div class="stat">
+                <span>Connections</span>
+                <span class="stat-value" id="statConnections">0</span>
+            </div>
+            <div class="stat">
+                <span>Protected Zones</span>
+                <span class="stat-value warning" id="statZones">0</span>
+            </div>
+            <div class="stat">
+                <span>Active Alerts</span>
+                <span class="stat-value danger" id="statAlerts">0</span>
+            </div>
+            
+            <div class="legend">
+                <h3>🎨 Legend</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #9b59b6;"></div>
+                    <span>Service</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #3498db;"></div>
+                    <span>File</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e67e22;"></div>
+                    <span>Function</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #e74c3c;"></div>
+                    <span>Protected</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2ecc71;"></div>
+                    <span>Endpoint</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel" id="impact-panel">
+            <h2>📊 Change Impact Analysis</h2>
+            
+            <div class="control-group">
+                <label>File Path</label>
+                <input type="text" id="impactFilePath" placeholder="service/app/file.py">
+            </div>
+            
+            <div class="control-group">
+                <label>Change Type</label>
+                <select id="impactChangeType">
+                    <option value="modify">Modify</option>
+                    <option value="create">Create</option>
+                    <option value="delete">Delete</option>
+                </select>
+            </div>
+            
+            <button id="runImpactBtn">🔍 Analyze Impact</button>
+            
+            <div id="impactResults" style="margin-top: 15px; display: none;">
+                <h3>Results</h3>
+                <div class="stat">
+                    <span>Risk Level</span>
+                    <span class="stat-value" id="impactRisk">-</span>
+                </div>
+                <div class="stat">
+                    <span>Impact Score</span>
+                    <span class="stat-value" id="impactScore">-</span>
+                </div>
+                <div class="stat">
+                    <span>Affected Nodes</span>
+                    <span class="stat-value" id="impactNodes">-</span>
+                </div>
+                <div class="stat">
+                    <span>Cascade Depth</span>
+                    <span class="stat-value" id="impactDepth">-</span>
+                </div>
+                
+                <h3>Protected Zones</h3>
+                <div id="impactZones"></div>
+                
+                <h3>Warnings</h3>
+                <div id="impactWarnings" style="font-size: 0.85em; color: #f39c12;"></div>
+            </div>
+        </div>
+        
+        <div class="panel" id="alerts-panel">
+            <h2>🚨 Active Alerts</h2>
+            <div id="alertsList">
+                <p style="color: #888;">No active alerts</p>
+            </div>
+        </div>
+        
+        <div class="panel" id="isolation-panel">
+            <h2>🏗️ Isolation Strategy</h2>
+            <p style="font-size: 0.85em; color: #888; margin-bottom: 10px;">
+                Fix issues at the layer where they originate. Never modify lower layers to fix higher layer issues.
+            </p>
+            <div id="isolationLayers"></div>
+        </div>
+        
+        <div class="tooltip" id="tooltip">
+            <div class="tooltip-title" id="tooltipTitle"></div>
+            <div class="tooltip-content" id="tooltipContent"></div>
+        </div>
+        
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div>Analyzing codebase...</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, nodes = [], connections = [];
+        let graphData = null;
+        
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0f);
+            scene.fog = new THREE.FogExp2(0x0a0a0f, 0.001);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.z = 600;
+            
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+            
+            const light1 = new THREE.PointLight(0x64c8ff, 1, 1000);
+            light1.position.set(200, 200, 200);
+            scene.add(light1);
+            
+            window.addEventListener('resize', onWindowResize);
+            
+            document.getElementById('analyzeBtn').addEventListener('click', analyzeCodebase);
+            document.getElementById('showImpactBtn').addEventListener('click', toggleImpactPanel);
+            document.getElementById('runImpactBtn').addEventListener('click', runImpactAnalysis);
+            
+            loadIsolationStrategy();
+            loadAlerts();
+            animate();
+        }
+        
+        async function analyzeCodebase() {
+            const path = document.getElementById('codebasePath').value;
+            document.getElementById('loading').style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    await loadGraph();
+                    updateStats(data);
+                    updateServiceFilter(data.services);
+                }
+            } catch (error) {
+                console.error('Analysis failed:', error);
+            }
+            
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        async function loadGraph() {
+            try {
+                const response = await fetch('/api/graph');
+                if (response.ok) {
+                    graphData = await response.json();
+                    renderGraph(graphData);
+                }
+            } catch (error) {
+                console.error('Failed to load graph:', error);
+            }
+        }
+        
+        function renderGraph(data) {
+            // Clear existing
+            nodes.forEach(n => scene.remove(n));
+            connections.forEach(c => scene.remove(c));
+            nodes = [];
+            connections = [];
+            
+            const nodePositions = {};
+            const servicePositions = {};
+            
+            // Position services in a circle
+            const serviceCount = data.services.length;
+            data.services.forEach((service, i) => {
+                const angle = (i / serviceCount) * Math.PI * 2;
+                servicePositions[service] = {
+                    x: Math.cos(angle) * 300,
+                    y: Math.sin(angle) * 300,
+                    z: 0
+                };
+            });
+            
+            // Create nodes
+            data.nodes.forEach((node, i) => {
+                const geometry = new THREE.SphereGeometry(
+                    node.type === 'service' ? 15 : 
+                    node.type === 'file' ? 8 : 
+                    node.type === 'endpoint' ? 10 : 5, 
+                    16, 16
+                );
+                
+                let color = 0x3498db; // Default blue
+                if (node.type === 'service') color = 0x9b59b6;
+                else if (node.type === 'function') color = 0xe67e22;
+                else if (node.type === 'endpoint') color = 0x2ecc71;
+                else if (node.protected_zone) color = 0xe74c3c;
+                
+                const material = new THREE.MeshPhongMaterial({ 
+                    color, 
+                    emissive: color,
+                    emissiveIntensity: 0.3
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // Position based on service
+                const servicePos = servicePositions[node.service] || { x: 0, y: 0, z: 0 };
+                const offset = i * 0.1;
+                mesh.position.set(
+                    servicePos.x + (Math.random() - 0.5) * 100,
+                    servicePos.y + (Math.random() - 0.5) * 100,
+                    servicePos.z + (Math.random() - 0.5) * 100
+                );
+                
+                mesh.userData = node;
+                nodePositions[node.id] = mesh.position;
+                
+                scene.add(mesh);
+                nodes.push(mesh);
+            });
+            
+            // Create connections
+            data.connections.forEach(conn => {
+                const start = nodePositions[conn.source_id];
+                const end = nodePositions[conn.target_id];
+                
+                if (start && end) {
+                    const points = [
+                        new THREE.Vector3(start.x, start.y, start.z),
+                        new THREE.Vector3(end.x, end.y, end.z)
+                    ];
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const material = new THREE.LineBasicMaterial({ 
+                        color: conn.type === 'auth' ? 0xe74c3c : 0x2a2a3a,
+                        opacity: 0.5,
+                        transparent: true
+                    });
+                    const line = new THREE.Line(geometry, material);
+                    scene.add(line);
+                    connections.push(line);
+                }
+            });
+        }
+        
+        function updateStats(data) {
+            document.getElementById('statServices').textContent = data.services?.length || 0;
+            document.getElementById('statNodes').textContent = data.total_nodes || 0;
+            document.getElementById('statConnections').textContent = data.total_connections || 0;
+            document.getElementById('statZones').textContent = data.protected_zones?.length || 0;
+        }
+        
+        function updateServiceFilter(services) {
+            const select = document.getElementById('serviceFilter');
+            select.innerHTML = '<option value="">All Services</option>';
+            services.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s;
+                option.textContent = s;
+                select.appendChild(option);
+            });
+        }
+        
+        function toggleImpactPanel() {
+            const panel = document.getElementById('impact-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        async function runImpactAnalysis() {
+            const filePath = document.getElementById('impactFilePath').value;
+            const changeType = document.getElementById('impactChangeType').value;
+            
+            try {
+                const response = await fetch('/api/impact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        change_type: changeType
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayImpactResults(data.impact);
+                }
+            } catch (error) {
+                console.error('Impact analysis failed:', error);
+            }
+        }
+        
+        function displayImpactResults(impact) {
+            document.getElementById('impactResults').style.display = 'block';
+            
+            const riskEl = document.getElementById('impactRisk');
+            riskEl.textContent = impact.risk_level.toUpperCase();
+            riskEl.className = 'stat-value ' + 
+                (impact.risk_level === 'critical' ? 'danger' : 
+                 impact.risk_level === 'high' ? 'warning' : 
+                 impact.risk_level === 'medium' ? 'info' : 'success');
+            
+            document.getElementById('impactScore').textContent = impact.impact_score.toFixed(1) + '/100';
+            document.getElementById('impactNodes').textContent = impact.affected_nodes.length;
+            document.getElementById('impactDepth').textContent = impact.cascade_depth;
+            
+            const zonesEl = document.getElementById('impactZones');
+            zonesEl.innerHTML = impact.protected_zones_affected.map(z => 
+                `<span class="zone-badge zone-${impact.risk_level}">${z}</span>`
+            ).join('') || '<span style="color: #888;">None</span>';
+            
+            const warningsEl = document.getElementById('impactWarnings');
+            warningsEl.innerHTML = impact.warnings.map(w => `<div>• ${w}</div>`).join('') || 'No warnings';
+        }
+        
+        async function loadIsolationStrategy() {
+            try {
+                const response = await fetch('/api/isolation');
+                if (response.ok) {
+                    const data = await response.json();
+                    displayIsolationLayers(data.layers);
+                }
+            } catch (error) {
+                console.error('Failed to load isolation strategy:', error);
+            }
+        }
+        
+        function displayIsolationLayers(layers) {
+            const container = document.getElementById('isolationLayers');
+            container.innerHTML = layers.map(layer => `
+                <div class="layer-item">
+                    <div class="layer-level">${layer.level}</div>
+                    <div>
+                        <div class="layer-name">${layer.name}</div>
+                        <div class="layer-services">${layer.services.slice(0, 3).join(', ')}${layer.services.length > 3 ? '...' : ''}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/agents/alerts');
+                if (response.ok) {
+                    const data = await response.json();
+                    displayAlerts(data.alerts);
+                    document.getElementById('statAlerts').textContent = data.alerts.length;
+                }
+            } catch (error) {
+                console.error('Failed to load alerts:', error);
+            }
+        }
+        
+        function displayAlerts(alerts) {
+            const container = document.getElementById('alertsList');
+            if (alerts.length === 0) {
+                container.innerHTML = '<p style="color: #2ecc71;">✓ No active alerts</p>';
+                return;
+            }
+            
+            container.innerHTML = alerts.map(alert => `
+                <div class="alert-item ${alert.severity}">
+                    <div class="alert-title">${alert.agent_name}</div>
+                    <div class="alert-message">${alert.message}</div>
+                </div>
+            `).join('');
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate nodes slightly
+            nodes.forEach(node => {
+                node.rotation.y += 0.002;
+            });
+            
+            // Rotate camera around scene
+            const time = Date.now() * 0.0001;
+            camera.position.x = Math.sin(time) * 600;
+            camera.position.z = Math.cos(time) * 600;
+            camera.lookAt(0, 0, 0);
+            
+            renderer.render(scene, camera);
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        init();
+    </script>
+</body>
+</html>
