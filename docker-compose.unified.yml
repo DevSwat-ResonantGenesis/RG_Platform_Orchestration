@@ -42,7 +42,7 @@ services:
   
   gateway:
     build:
-      context: ./gateway
+      context: /home/deploy/RG_Gateway
       dockerfile: Dockerfile
     container_name: gateway
     ports:
@@ -203,7 +203,7 @@ services:
 
   auth_service:
     build:
-      context: ./auth_service
+      context: /home/deploy/RG_Auth
       dockerfile: Dockerfile
     container_name: auth_service
     env_file:
@@ -222,7 +222,7 @@ services:
 
   billing_service:
     build:
-      context: ./billing_service
+      context: /home/deploy/RG_Billing
       dockerfile: Dockerfile
     container_name: billing_service
     env_file:
@@ -242,7 +242,7 @@ services:
 
   chat_service:
     build:
-      context: ./chat_service
+      context: /home/deploy/RG_Chat
       dockerfile: Dockerfile
     container_name: chat_service
     env_file:
@@ -257,7 +257,7 @@ services:
       DEPLOYMENT_COLOR: green
       PYTHONPATH: /app
     volumes:
-      - ./shared/tools:/app/platform_tools:ro
+      - /home/deploy/RG_Platform_Tools:/app/platform_tools:ro
       - /home/deploy/RG_UnifiedLLMClient/src/rg_llm:/app/rg_llm:ro
     networks:
       - app-network
@@ -270,7 +270,7 @@ services:
 
   llm_service:
     build:
-      context: ./llm_service
+      context: /home/deploy/RG_LLM_Service
       dockerfile: Dockerfile
     container_name: llm_service
     env_file:
@@ -289,7 +289,7 @@ services:
 
   memory_service:
     build:
-      context: ./memory_service
+      context: /home/deploy/RG_Memory
       dockerfile: Dockerfile
     container_name: memory_service
     env_file:
@@ -308,7 +308,7 @@ services:
 
   user_service:
     build:
-      context: ./user_service
+      context: /home/deploy/RG_User_Service
       dockerfile: Dockerfile
     container_name: user_service
     env_file:
@@ -631,7 +631,7 @@ services:
 
   agent_engine_service:
     build:
-      context: ./agent_engine_service
+      context: /home/deploy/RG_Agent_Engine
       dockerfile: Dockerfile
     container_name: agent_engine_service
     env_file:
@@ -651,7 +651,7 @@ services:
       PYTHONPATH: /app
     volumes:
       - build_projects:/opt/resonant/user_workspaces
-      - ./shared/tools:/app/platform_tools:ro
+      - /home/deploy/RG_Platform_Tools:/app/platform_tools:ro
       - /home/deploy/RG_UnifiedLLMClient/src/rg_llm:/app/rg_llm:ro
     networks:
       - app-network
@@ -815,7 +815,7 @@ services:
 
   blockchain_node:
     build:
-      context: ./node
+      context: /home/deploy/RG_Blockchain_Node
       dockerfile: Dockerfile
     container_name: blockchain_node
     ports:
