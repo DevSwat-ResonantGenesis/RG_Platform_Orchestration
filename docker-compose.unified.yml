@@ -801,33 +801,13 @@ services:
       retries: 3
 
   # ============================================
-  # OPENCLAW INTEGRATION SERVICE (Standalone, Isolated)
+  # OPENCLAW — REMOVED FROM SERVER (Apr 6 2026)
   # ============================================
-  # Can be disabled via OPENCLAW_SERVICE_ENABLED=false without affecting anything else
-
-  openclaw_service:
-    build:
-      context: /home/deploy/RG_OpenClaw
-      dockerfile: Dockerfile
-    container_name: openclaw_service
-    env_file:
-      - ./.env.production
-    environment:
-      AGENT_ENGINE_URL: http://agent_engine_service:8000
-      AUTH_SERVICE_URL: http://auth_service:8000
-      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-resonantgenesis.xyz}
-      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-}
-      OPENCLAW_SERVICE_ENABLED: ${OPENCLAW_SERVICE_ENABLED:-true}
-    depends_on:
-      - agent_engine_service
-    networks:
-      - app-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # OpenClaw gateway (3GB+ RAM) was crashing the 8GB server.
+  # Now runs LOCALLY on developer machines, connecting to the
+  # platform via the public API like real users would.
+  # To run locally: see RG_OpenClaw/README.md
+  # ============================================
 
   # ============================================
   # BLOCKCHAIN NODE
